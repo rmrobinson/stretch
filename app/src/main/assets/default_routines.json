@@ -1,0 +1,18 @@
+{"routines":[
+{"name":"Morning stretch","steps":[
+{"name":"Chin tucks (hold 3 sec each)","reps":10},
+{"name":"Upper trap stretch","seconds":30,"perSide":true},
+{"name":"Levator scap stretch","seconds":30,"perSide":true},
+{"name":"Doorway pec stretch","seconds":30,"perSide":true},
+{"name":"Thread the needle","seconds":20,"perSide":true}
+]},
+{"name":"Evening stretch","steps":[
+{"name":"Chin tucks (hold 3 sec each)","reps":10},
+{"name":"Upper trap stretch","seconds":30,"perSide":true},
+{"name":"Levator scap stretch","seconds":30,"perSide":true},
+{"name":"Doorway pec stretch","seconds":30,"perSide":true},
+{"name":"Thread the needle","seconds":20,"perSide":true},
+{"name":"Wall slides","reps":10},
+{"name":"Cat-cow","reps":10}
+]}
+]}
