@@ -1,0 +1,28 @@
+{"routines":[
+{"name":"Morning stretch","steps":[
+{"name":"Chin tucks (hold 3 sec each)","reps":10},
+{"name":"Upper trap stretch","seconds":30,"perSide":true},
+{"name":"Levator scap stretch","seconds":30,"perSide":true},
+{"name":"Doorway pec stretch","seconds":30,"perSide":true},
+{"name":"Thread the needle","seconds":20,"perSide":true}
+]},
+{"name":"Evening stretch","steps":[
+{"name":"Chin tucks (hold 3 sec each)","reps":10},
+{"name":"Upper trap stretch","seconds":30,"perSide":true},
+{"name":"Levator scap stretch","seconds":30,"perSide":true},
+{"name":"Doorway pec stretch","seconds":30,"perSide":true},
+{"name":"Thread the needle","seconds":20,"perSide":true},
+{"name":"Wall slides","reps":10},
+{"name":"Cat-cow","reps":10}
+]},
+{"name":"Nighttime stretch","steps":[
+{"name":"Rag doll","seconds":60},
+{"name":"Upward dog","seconds":60},
+{"name":"Child's pose","seconds":60},
+{"name":"Knees to chest","seconds":60},
+{"name":"Happy baby","seconds":60},
+{"name":"Reclined butterfly","seconds":60},
+{"name":"Back twist","seconds":30,"perSide":true},
+{"name":"Quad stretch","seconds":30,"perSide":true}
+]}
+]}
