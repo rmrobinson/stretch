@@ -21,13 +21,17 @@ class RoutineCodec {
      * routine in the payload throws and nothing is imported.
      */
     fun parse(raw: String): List<Routine> {
-        val text = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val text = raw.trim()
+            .replaceFirst(Regex("^```json\\s*", RegexOption.IGNORE_CASE), "")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
         val el = json.parseToJsonElement(text)
         val routines = when {
             el is JsonArray -> json.decodeFromJsonElement(ListSerializer(Routine.serializer()), el)
             el is JsonObject && "routines" in el -> json.decodeFromJsonElement(Library.serializer(), el).routines
             else -> listOf(json.decodeFromJsonElement(Routine.serializer(), el))
-        }
+        }.map { r -> r.copy(name = r.name.trim(), steps = r.steps.map { it.copy(name = it.name.trim()) }) }
         routines.forEach(::validate)
         return routines
     }

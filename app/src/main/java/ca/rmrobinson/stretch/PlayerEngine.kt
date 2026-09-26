@@ -30,6 +30,9 @@ data class PlayerState(
     val finished: Boolean = false,
 ) {
     val step: PlayStep get() = steps[index]
+
+    /** Seconds remaining, rounded up so the display never shows 0 while time is still left. */
+    val secsLeft: Int get() = ((remainingMs + 999) / 1000).toInt()
 }
 
 enum class CueEvent { NONE, TICK, DONE }
@@ -60,7 +63,7 @@ class PlayerEngine(routine: Routine, nowMs: Long) {
             finished = false,
         )
         lastTickMs = nowMs
-        lastShownSecs = secsLeft(state.remainingMs)
+        lastShownSecs = state.secsLeft
     }
 
     /** Advances the clock to [nowMs]. No-op (and returns [CueEvent.NONE]) while paused,
@@ -72,7 +75,7 @@ class PlayerEngine(routine: Routine, nowMs: Long) {
         val remaining = (state.remainingMs - elapsed).coerceAtLeast(0)
         state = state.copy(remainingMs = remaining)
 
-        val shown = secsLeft(remaining)
+        val shown = state.secsLeft
         var event = CueEvent.NONE
         if (shown != lastShownSecs) {
             lastShownSecs = shown
@@ -112,6 +115,4 @@ class PlayerEngine(routine: Routine, nowMs: Long) {
             state.copy(paused = true)
         }
     }
-
-    private fun secsLeft(ms: Long) = ((ms + 999) / 1000).toInt()
 }

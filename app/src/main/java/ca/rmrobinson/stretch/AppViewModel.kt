@@ -43,7 +43,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingRoutineIndex: Int? = null
     private var isCountingDown = false
 
-    var routines by mutableStateOf(repo.load())
+    var routines by mutableStateOf<List<Routine>>(emptyList())
         private set
     var screen by mutableStateOf<Screen>(Screen.Home)
         private set
@@ -58,6 +58,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var draftName by mutableStateOf("")
     val draftSteps = mutableStateListOf<EditStep>()
+
+    init {
+        viewModelScope.launch { routines = repo.load() }
+    }
 
     private fun now() = SystemClock.elapsedRealtime()
 
@@ -199,15 +203,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val r = Routine(name, steps)
         val i = editingIndex
         routines = if (i != null) routines.toMutableList().also { it[i] = r } else repo.upsert(routines, listOf(r))
-        repo.save(routines)
         screen = Screen.Home
+        viewModelScope.launch { repo.save(routines) }
     }
 
     fun deleteEditing() {
         val i = editingIndex ?: return
         routines = routines.toMutableList().also { it.removeAt(i) }
-        repo.save(routines)
         screen = Screen.Home
+        viewModelScope.launch { repo.save(routines) }
     }
 
     // ---- import / export (this is how new routines get in) ----
@@ -217,8 +221,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         try {
             val incoming = repo.parse(text)
             routines = repo.upsert(routines, incoming)
-            repo.save(routines)
             message = "Imported: " + incoming.joinToString { it.name }
+            viewModelScope.launch { repo.save(routines) }
         } catch (e: Exception) {
             message = "Import failed: ${e.message}"
         }

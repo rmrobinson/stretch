@@ -157,7 +157,7 @@ fun CountdownScreen(vm: AppViewModel) {
     BackHandler(enabled = true) { vm.cancelCountdown() }
     if (p == null) return
     val routineName = vm.summaryIndex?.let { vm.routines.getOrNull(it)?.name } ?: ""
-    val secs = ((p.remainingMs + 999) / 1000).toInt()
+    val secs = p.secsLeft
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -214,7 +214,7 @@ fun PlayerScreen(vm: AppViewModel) {
         Text(step.name, style = MaterialTheme.typography.displayMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
         if (step.isTimed) {
-            val secs = ((p.remainingMs + 999) / 1000).toInt()
+            val secs = p.secsLeft
             val warn = secs in 1..step.cueAtSeconds
             Text(
                 "$secs",

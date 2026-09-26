@@ -2,6 +2,8 @@ package ca.rmrobinson.stretch
 
 import android.content.Context
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class RoutineRepository(private val context: Context) {
     private val codec = RoutineCodec()
@@ -9,9 +11,9 @@ class RoutineRepository(private val context: Context) {
 
     /** First run: seed from the bundled asset. Corrupt routines.json: fall back to seeds
      * and preserve the bad file as routines.bad.json. */
-    fun load(): List<Routine> {
-        if (!file.exists()) return seedRoutines()
-        return try {
+    suspend fun load(): List<Routine> = withContext(Dispatchers.IO) {
+        if (!file.exists()) return@withContext seedRoutines()
+        try {
             codec.parse(file.readText())
         } catch (e: Exception) {
             file.copyTo(File(context.filesDir, "routines.bad.json"), overwrite = true)
@@ -19,7 +21,9 @@ class RoutineRepository(private val context: Context) {
         }
     }
 
-    fun save(routines: List<Routine>) = file.writeText(codec.toJson(routines))
+    suspend fun save(routines: List<Routine>) = withContext(Dispatchers.IO) {
+        file.writeText(codec.toJson(routines))
+    }
 
     fun toJson(routines: List<Routine>): String = codec.toJson(routines)
 
