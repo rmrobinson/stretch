@@ -48,18 +48,33 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Steps counted with `perSide` doubled, and total timed seconds likewise doubled. */
+private fun stepSummary(r: Routine): Pair<Int, Int> {
+    val stepCount: Int = r.steps.map { s -> if (s.perSide) 2 else 1 }.sum()
+    val timedSeconds: Int = r.steps.map { s -> (s.seconds ?: 0) * (if (s.perSide) 2 else 1) }.sum()
+    return stepCount to timedSeconds
+}
+
+private fun stepValueLabel(s: Step): String {
+    val value = if (s.isTimed) "${s.seconds}s" else "${s.reps} reps"
+    return if (s.perSide) "$value · each side" else value
+}
+
 @Composable
 fun App(vm: AppViewModel) {
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(vm.message) {
         vm.message?.let { snackbar.showSnackbar(it); vm.message = null }
     }
-    // Editor exits straight to Home on back; Player has its own confirm dialog (see PlayerScreen).
-    BackHandler(enabled = vm.screen == Screen.Edit) { vm.back() }
+    // Editor and Summary exit straight back on back-press; Player and Countdown handle their
+    // own back-press (see PlayerScreen/CountdownScreen) since they need custom confirm/cancel behavior.
+    BackHandler(enabled = vm.screen == Screen.Edit || vm.screen == Screen.Summary) { vm.back() }
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (vm.screen) {
                 Screen.Home -> HomeScreen(vm)
+                Screen.Summary -> SummaryScreen(vm)
+                Screen.Countdown -> CountdownScreen(vm)
                 Screen.Play -> PlayerScreen(vm)
                 Screen.Edit -> EditorScreen(vm)
             }
@@ -79,9 +94,8 @@ fun HomeScreen(vm: AppViewModel) {
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(vm.routines) { i, r ->
-                    val stepCount: Int = r.steps.map { s -> if (s.perSide) 2 else 1 }.sum()
-                    val timed: Int = r.steps.map { s -> (s.seconds ?: 0) * (if (s.perSide) 2 else 1) }.sum()
-                    Card(onClick = { vm.startRoutine(i) }, modifier = Modifier.fillMaxWidth()) {
+                    val (stepCount, timed) = stepSummary(r)
+                    Card(onClick = { vm.openSummary(i) }, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(r.name, style = MaterialTheme.typography.titleLarge)
@@ -100,6 +114,62 @@ fun HomeScreen(vm: AppViewModel) {
             onClick = { vm.openEditor(null) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
         ) { Icon(Icons.Default.Add, "New routine") }
+    }
+}
+
+@Composable
+fun SummaryScreen(vm: AppViewModel) {
+    val i = vm.summaryIndex ?: return
+    val r = vm.routines.getOrNull(i) ?: return
+    val (stepCount, timed) = stepSummary(r)
+    Column(Modifier.fillMaxSize().padding(24.dp)) {
+        Text(r.name, style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "$stepCount steps · ${timed / 60}:${"%02d".format(timed % 60)} timed",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(16.dp))
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            itemsIndexed(r.steps) { _, s ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Text(s.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text(stepValueLabel(s), style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = vm::back) { Text("Cancel") }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = vm::startCountdown, modifier = Modifier.height(64.dp)) { Text("Start") }
+        }
+    }
+}
+
+@Composable
+fun CountdownScreen(vm: AppViewModel) {
+    val p = vm.player
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+    BackHandler(enabled = true) { vm.cancelCountdown() }
+    if (p == null) return
+    val routineName = vm.summaryIndex?.let { vm.routines.getOrNull(it)?.name } ?: ""
+    val secs = ((p.remainingMs + 999) / 1000).toInt()
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Get ready", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(routineName, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(32.dp))
+        Text("$secs", fontSize = 180.sp, color = MaterialTheme.colorScheme.error)
+        Spacer(Modifier.height(32.dp))
+        OutlinedButton(onClick = vm::cancelCountdown, modifier = Modifier.height(56.dp)) { Text("Cancel") }
     }
 }
 

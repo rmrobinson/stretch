@@ -17,9 +17,13 @@ import kotlinx.coroutines.launch
 
 sealed interface Screen {
     object Home : Screen
+    object Summary : Screen
+    object Countdown : Screen
     object Play : Screen
     object Edit : Screen
 }
+
+private const val GET_READY_SECONDS = 3
 
 /** Editor row; [value] is text so the field can be empty while typing. */
 data class EditStep(
@@ -36,6 +40,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val clipboard = app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private var timerJob: Job? = null
     private var engine: PlayerEngine? = null
+    private var pendingRoutineIndex: Int? = null
+    private var isCountingDown = false
 
     var routines by mutableStateOf(repo.load())
         private set
@@ -44,6 +50,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var player by mutableStateOf<PlayerState?>(null)
         private set
     var message by mutableStateOf<String?>(null)
+
+    var summaryIndex by mutableStateOf<Int?>(null)
+        private set
 
     var editingIndex by mutableStateOf<Int?>(null)
         private set
@@ -56,16 +65,52 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun back() {
         when (screen) {
             Screen.Play -> exitPlayer()
+            Screen.Countdown -> cancelCountdown()
+            Screen.Summary -> { summaryIndex = null; screen = Screen.Home }
             Screen.Edit -> screen = Screen.Home
             Screen.Home -> Unit
         }
     }
 
+    // ---- routine summary / pre-start countdown ----
+    fun openSummary(i: Int) {
+        summaryIndex = i
+        screen = Screen.Summary
+    }
+
+    /** Starts a "Get ready" lead-in with the same countdown/cue treatment as a timed step,
+     * then automatically begins actual playback of the previewed routine. */
+    fun startCountdown() {
+        val i = summaryIndex ?: return
+        if (routines[i].steps.isEmpty()) return
+        pendingRoutineIndex = i
+        isCountingDown = true
+        cues.start()
+        val getReady = Routine("Get ready", listOf(Step("Get ready", seconds = GET_READY_SECONDS, cueAtSeconds = GET_READY_SECONDS)))
+        val e = PlayerEngine(getReady, now())
+        engine = e
+        player = e.state
+        screen = Screen.Countdown
+        runTimerLoop()
+    }
+
+    fun cancelCountdown() {
+        timerJob?.cancel()
+        cues.stop()
+        engine = null
+        player = null
+        isCountingDown = false
+        pendingRoutineIndex = null
+        screen = Screen.Summary
+    }
+
     // ---- player ----
-    fun startRoutine(i: Int) {
+    /** Begins actual routine playback; reached once [startCountdown]'s lead-in finishes. */
+    private fun startRoutine(i: Int) {
         val r = routines[i]
         if (r.steps.isEmpty()) return
-        cues.start()
+        isCountingDown = false
+        pendingRoutineIndex = null
         val e = PlayerEngine(r, now())
         engine = e
         player = e.state
@@ -85,6 +130,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     CueEvent.NONE -> Unit
                 }
                 player = e.state
+                if (isCountingDown && e.state.finished) {
+                    pendingRoutineIndex?.let { startRoutine(it) }
+                    return@launch
+                }
             }
         }
     }
@@ -112,6 +161,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         cues.stop()
         engine = null
         player = null
+        isCountingDown = false
+        pendingRoutineIndex = null
         screen = Screen.Home
     }
 
