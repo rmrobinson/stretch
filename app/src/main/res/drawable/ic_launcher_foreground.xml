@@ -4,7 +4,18 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Elastic band stretched taut between two anchor knots. -->
     <path
-        android:fillColor="#FFF8E1"
-        android:pathData="M54,24 C40,24 32,34 32,46 C32,56 40,60 40,68 C40,76 34,80 34,80 L42,84 C42,84 50,78 50,68 C50,58 42,54 42,46 C42,40 46,34 54,34 C62,34 66,40 66,46 C66,54 58,58 58,68 C58,78 66,84 66,84 L74,80 C74,80 68,76 68,68 C68,60 76,56 76,46 C76,34 68,24 54,24 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFF8EE"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,54 C38,34 48,74 54,54 C60,34 70,74 76,54" />
+    <path
+        android:fillColor="#FFF8EE"
+        android:pathData="M16,54 A8,8 0 1,0 32,54 A8,8 0 1,0 16,54 Z" />
+    <path
+        android:fillColor="#FFF8EE"
+        android:pathData="M76,54 A8,8 0 1,0 92,54 A8,8 0 1,0 76,54 Z" />
 </vector>
