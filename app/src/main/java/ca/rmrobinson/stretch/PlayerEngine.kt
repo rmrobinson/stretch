@@ -26,6 +26,8 @@ data class PlayerState(
     val steps: List<PlayStep>,
     val index: Int = 0,
     val remainingMs: Long = 0,
+    /** Grace period left before the timer on a timed step starts counting down. */
+    val prepMs: Long = 0,
     val paused: Boolean = false,
     val finished: Boolean = false,
 ) {
@@ -33,9 +35,13 @@ data class PlayerState(
 
     /** Seconds remaining, rounded up so the display never shows 0 while time is still left. */
     val secsLeft: Int get() = ((remainingMs + 999) / 1000).toInt()
+
+    val inPrep: Boolean get() = prepMs > 0
+    val prepSecsLeft: Int get() = ((prepMs + 999) / 1000).toInt()
 }
 
-enum class CueEvent { NONE, TICK, DONE }
+/** [GO] fires when a step's grace period ends and its timer starts. */
+enum class CueEvent { NONE, TICK, GO, DONE }
 
 /**
  * Pure Kotlin timer/state machine for a running routine. Driven entirely by caller-supplied
@@ -44,21 +50,26 @@ enum class CueEvent { NONE, TICK, DONE }
  *
  * [routine] must have at least one step. A `perSide` step is expanded into two consecutive
  * beats (Left, then Right) up front, so the rest of the engine just sees a flat step list.
+ *
+ * Every timed beat (so each side of a `perSide` step too) starts with [graceSeconds] of
+ * un-counted time to get into position before its timer runs — except the very first beat,
+ * which the caller's own lead-in countdown already covers.
  */
-class PlayerEngine(routine: Routine, nowMs: Long) {
+class PlayerEngine(routine: Routine, nowMs: Long, private val graceSeconds: Int = 0) {
     var state: PlayerState = PlayerState(routine.name, expand(routine.steps))
         private set
 
     private var lastTickMs: Long = nowMs
     private var lastShownSecs: Int = 0
 
-    init { beginStep(0, nowMs) }
+    init { beginStep(0, nowMs, withGrace = false) }
 
-    private fun beginStep(index: Int, nowMs: Long) {
+    private fun beginStep(index: Int, nowMs: Long, withGrace: Boolean = true) {
         val step = state.steps[index]
         state = state.copy(
             index = index,
             remainingMs = (step.seconds ?: 0) * 1000L,
+            prepMs = if (step.isTimed && withGrace) graceSeconds * 1000L else 0,
             paused = false,
             finished = false,
         )
@@ -67,16 +78,27 @@ class PlayerEngine(routine: Routine, nowMs: Long) {
     }
 
     /** Advances the clock to [nowMs]. No-op (and returns [CueEvent.NONE]) while paused,
-     * finished, or on a rep-based step. Auto-advances to the next step at 0. */
+     * finished, or on a rep-based step. Burns down the grace period first (any overshoot
+     * carries into the timer), then auto-advances to the next step at 0. */
     fun tick(nowMs: Long): CueEvent {
         if (state.finished || state.paused || !state.step.isTimed) return CueEvent.NONE
-        val elapsed = nowMs - lastTickMs
+        var elapsed = nowMs - lastTickMs
         lastTickMs = nowMs
+        var event = CueEvent.NONE
+        if (state.inPrep) {
+            val prep = state.prepMs - elapsed
+            if (prep > 0) {
+                state = state.copy(prepMs = prep)
+                return CueEvent.NONE
+            }
+            state = state.copy(prepMs = 0)
+            elapsed = -prep
+            event = CueEvent.GO
+        }
         val remaining = (state.remainingMs - elapsed).coerceAtLeast(0)
         state = state.copy(remainingMs = remaining)
 
         val shown = state.secsLeft
-        var event = CueEvent.NONE
         if (shown != lastShownSecs) {
             lastShownSecs = shown
             if (shown in 1..state.step.cueAtSeconds) event = CueEvent.TICK
