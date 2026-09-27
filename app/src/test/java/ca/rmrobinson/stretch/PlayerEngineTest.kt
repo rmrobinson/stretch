@@ -220,4 +220,94 @@ class PlayerEngineTest {
         assertTrue(engine.state.finished)
         assertEquals(CueEvent.DONE, event)
     }
+
+    // ---- grace period ----
+
+    /** Builds an engine whose first beat is a rep-based lead-in, then advances past it at t=0,
+     * since the very first beat never gets a grace period. */
+    private fun afterLeadIn(vararg steps: Step): PlayerEngine {
+        val engine = PlayerEngine(Routine("R", listOf(Step("Lead", reps = 1)) + steps), nowMs = 0, graceSeconds = 3)
+        engine.next(0)
+        return engine
+    }
+
+    @Test
+    fun `first step has no grace period`() {
+        val routine = Routine("R", listOf(Step("A", seconds = 5)))
+        val engine = PlayerEngine(routine, nowMs = 0, graceSeconds = 3)
+
+        assertFalse(engine.state.inPrep)
+        engine.tick(1000)
+        assertEquals(4000L, engine.state.remainingMs)
+    }
+
+    @Test
+    fun `grace period delays the timer, then fires GO`() {
+        val engine = afterLeadIn(Step("A", seconds = 5, cueAtSeconds = 1))
+        assertTrue(engine.state.inPrep)
+        assertEquals(3, engine.state.prepSecsLeft)
+
+        val prepEvents = drive(engine, fromMs = 0, toMs = 3000)
+        assertEquals(listOf(CueEvent.GO), prepEvents)
+        assertFalse(engine.state.inPrep)
+        assertEquals(5000L, engine.state.remainingMs)
+
+        val events = drive(engine, fromMs = 3000, toMs = 8000)
+        assertEquals(listOf(CueEvent.TICK, CueEvent.DONE), events)
+        assertTrue(engine.state.finished)
+    }
+
+    @Test
+    fun `grace overshoot carries into the timer`() {
+        val engine = afterLeadIn(Step("A", seconds = 5))
+
+        assertEquals(CueEvent.GO, engine.tick(3400))
+
+        assertEquals(4600L, engine.state.remainingMs)
+    }
+
+    @Test
+    fun `switching sides of a perSide step gets a grace period`() {
+        val routine = Routine("R", listOf(Step("Hip flexor", seconds = 2, cueAtSeconds = 1, perSide = true)))
+        val engine = PlayerEngine(routine, nowMs = 0, graceSeconds = 3)
+
+        drive(engine, fromMs = 0, toMs = 2000) // Left is the first beat: no grace
+        assertEquals("Hip flexor, Right", engine.state.step.name)
+        assertEquals(3000L, engine.state.prepMs)
+        assertEquals(2000L, engine.state.remainingMs)
+    }
+
+    @Test
+    fun `returning to the first step with previous gets a grace period`() {
+        val routine = Routine("R", listOf(Step("A", seconds = 5), Step("B", seconds = 5)))
+        val engine = PlayerEngine(routine, nowMs = 0, graceSeconds = 3)
+
+        engine.next(0)
+        engine.previous(0)
+
+        assertEquals(0, engine.state.index)
+        assertTrue(engine.state.inPrep)
+    }
+
+    @Test
+    fun `rep step has no grace period`() {
+        val engine = afterLeadIn(Step("A", reps = 10))
+
+        assertFalse(engine.state.inPrep)
+    }
+
+    @Test
+    fun `pause freezes the grace period`() {
+        val engine = afterLeadIn(Step("A", seconds = 5))
+
+        engine.tick(1000)
+        engine.togglePause(1000)
+        engine.tick(10_000)
+        assertEquals(2000L, engine.state.prepMs)
+
+        engine.togglePause(10_000)
+        engine.tick(11_000)
+        assertEquals(1000L, engine.state.prepMs)
+        assertEquals(5000L, engine.state.remainingMs)
+    }
 }

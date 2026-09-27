@@ -24,14 +24,19 @@ sealed interface Screen {
 }
 
 private const val GET_READY_SECONDS = 3
+private const val STEP_GRACE_SECONDS = 3
 
-/** Editor row; [value] is text so the field can be empty while typing. */
+private var nextEditStepId = 0L
+
+/** Editor row; [value] is text so the field can be empty while typing. [id] is a stable
+ * list key so a row keeps its identity (and in-progress drag) as it moves. */
 data class EditStep(
     val name: String,
     val timed: Boolean,
     val value: String,
     val cueAt: Int = 3,
     val perSide: Boolean = false,
+    val id: Long = nextEditStepId++,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -115,7 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (r.steps.isEmpty()) return
         isCountingDown = false
         pendingRoutineIndex = null
-        val e = PlayerEngine(r, now())
+        val e = PlayerEngine(r, now(), graceSeconds = STEP_GRACE_SECONDS)
         engine = e
         player = e.state
         screen = Screen.Play
@@ -130,6 +135,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val e = engine ?: return@launch
                 when (e.tick(now())) {
                     CueEvent.TICK -> cues.tick()
+                    CueEvent.GO -> cues.go()
                     CueEvent.DONE -> cues.done()
                     CueEvent.NONE -> Unit
                 }
@@ -185,10 +191,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addDraftStep() { draftSteps.add(EditStep("", true, "30")) }
 
-    fun moveDraftStep(i: Int, delta: Int) {
-        val j = i + delta
-        if (j !in draftSteps.indices) return
-        val tmp = draftSteps[i]; draftSteps[i] = draftSteps[j]; draftSteps[j] = tmp
+    fun moveDraftStep(from: Int, to: Int) {
+        if (from !in draftSteps.indices || to !in draftSteps.indices) return
+        draftSteps.add(to, draftSteps.removeAt(from))
     }
 
     fun saveDraft() {

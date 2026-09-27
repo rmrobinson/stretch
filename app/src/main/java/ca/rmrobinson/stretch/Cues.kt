@@ -25,6 +25,8 @@ class Cues(context: Context) {
 
     fun tick() { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80) }
 
+    fun go() { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 150) }
+
     fun done() { tone?.startTone(ToneGenerator.TONE_PROP_ACK, 400) }
 
     fun stop() {

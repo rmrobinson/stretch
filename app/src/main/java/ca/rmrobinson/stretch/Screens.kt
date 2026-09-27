@@ -1,6 +1,7 @@
 package ca.rmrobinson.stretch
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -42,11 +45,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 
 /** Steps counted with `perSide` doubled, and total timed seconds likewise doubled. */
 private fun stepSummary(r: Routine): Pair<Int, Int> {
@@ -213,7 +219,11 @@ fun PlayerScreen(vm: AppViewModel) {
         Spacer(Modifier.weight(1f))
         Text(step.name, style = MaterialTheme.typography.displayMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
-        if (step.isTimed) {
+        if (step.isTimed && p.inPrep) {
+            Text("Get into position", style = MaterialTheme.typography.titleLarge)
+            Text("${p.prepSecsLeft}", fontSize = 144.sp, color = MaterialTheme.colorScheme.primary)
+            Text("then ${step.seconds}s", style = MaterialTheme.typography.titleMedium)
+        } else if (step.isTimed) {
             val secs = p.secsLeft
             val warn = secs in 1..step.cueAtSeconds
             Text(
@@ -241,6 +251,14 @@ fun PlayerScreen(vm: AppViewModel) {
 
 @Composable
 fun EditorScreen(vm: AppViewModel) {
+    val listState = rememberLazyListState()
+    val reorder = rememberDragReorderState(listState, vm::moveDraftStep)
+    // Bring a just-added step into view (only on growth, so deletes don't yank the list).
+    var lastCount by remember { mutableStateOf(vm.draftSteps.size) }
+    LaunchedEffect(vm.draftSteps.size) {
+        if (vm.draftSteps.size > lastCount) listState.animateScrollToItem(vm.draftSteps.lastIndex)
+        lastCount = vm.draftSteps.size
+    }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
             value = vm.draftName,
@@ -249,9 +267,15 @@ fun EditorScreen(vm: AppViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            itemsIndexed(vm.draftSteps) { i, s ->
-                Card(Modifier.fillMaxWidth()) {
+        LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            itemsIndexed(vm.draftSteps, key = { _, s -> s.id }) { i, s ->
+                val dragging = reorder.draggingKey == s.id
+                val itemModifier = if (dragging) {
+                    Modifier.zIndex(1f).graphicsLayer { translationY = reorder.dragOffset; shadowElevation = 16f }
+                } else {
+                    Modifier.animateItem()
+                }
+                Card(itemModifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
                         OutlinedTextField(
                             value = s.name,
@@ -280,9 +304,23 @@ fun EditorScreen(vm: AppViewModel) {
                                 label = { Text("Per side (left, then right)") }
                             )
                         }
-                        Row {
-                            TextButton(onClick = { vm.moveDraftStep(i, -1) }) { Text("↑") }
-                            TextButton(onClick = { vm.moveDraftStep(i, 1) }) { Text("↓") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.DragHandle,
+                                contentDescription = "Drag to reorder",
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .pointerInput(s.id) {
+                                        detectDragGestures(
+                                            onDragStart = { reorder.onDragStart(s.id) },
+                                            onDragEnd = reorder::onDragEnd,
+                                            onDragCancel = reorder::onDragEnd,
+                                        ) { change, amount ->
+                                            change.consume()
+                                            reorder.onDrag(amount.y)
+                                        }
+                                    }
+                            )
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = { vm.draftSteps.removeAt(i) }) { Text("Delete") }
                         }
